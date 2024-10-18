@@ -1,4 +1,4 @@
-FROM php:8.2-fpm
+FROM php:8.3-fpm
 
 # set main params
 ARG BUILD_ARGUMENT_ENV=dev
@@ -11,6 +11,8 @@ ARG INSIDE_DOCKER_CONTAINER=1
 ENV INSIDE_DOCKER_CONTAINER=$INSIDE_DOCKER_CONTAINER
 ARG XDEBUG_CONFIG=main
 ENV XDEBUG_CONFIG=$XDEBUG_CONFIG
+ARG XDEBUG_VERSION=3.3.2
+ENV XDEBUG_VERSION=$XDEBUG_VERSION
 
 # check environment
 RUN if [ "$BUILD_ARGUMENT_ENV" = "default" ]; then echo "Set BUILD_ARGUMENT_ENV in docker build-args like --build-arg BUILD_ARGUMENT_ENV=dev" && exit 2; \
@@ -23,6 +25,8 @@ RUN if [ "$BUILD_ARGUMENT_ENV" = "default" ]; then echo "Set BUILD_ARGUMENT_ENV 
 
 # install all the dependencies and enable PHP modules
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+      bash-completion \
+      fish \
       procps \
       nano \
       git \
@@ -70,6 +74,9 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN chmod +x /usr/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER 1
 
+# Enable Composer autocompletion
+RUN composer completion bash > /etc/bash_completion.d/composer
+
 # add supervisor
 RUN mkdir -p /var/log/supervisor
 COPY --chown=root:root ./docker/general/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -81,6 +88,15 @@ WORKDIR $APP_HOME
 
 USER ${USERNAME}
 
+# Add necessary stuff to bash autocomplete
+RUN echo 'source /usr/share/bash-completion/bash_completion' >> /home/${USERNAME}/.bashrc \
+    && echo 'alias artisan="php /var/www/html/artisan"' >> /home/${USERNAME}/.bashrc
+
+# copy fish configs
+COPY --chown=${USERNAME}:${USERNAME} ./docker/fish/completions/ /home/${USERNAME}/.config/fish/completions/
+COPY --chown=${USERNAME}:${USERNAME} ./docker/fish/functions/ /home/${USERNAME}/.config/fish/functions/
+COPY --chown=${USERNAME}:${USERNAME} ./docker/fish/config.fish /home/${USERNAME}/.config/fish/config.fish
+
 # copy source files and config file
 COPY --chown=${USERNAME}:${USERNAME} . $APP_HOME/
 COPY --chown=${USERNAME}:${USERNAME} .env.$ENV $APP_HOME/.env
@@ -89,5 +105,20 @@ COPY --chown=${USERNAME}:${USERNAME} .env.$ENV $APP_HOME/.env
 RUN if [ "$BUILD_ARGUMENT_ENV" = "dev" ] || [ "$BUILD_ARGUMENT_ENV" = "test" ]; then COMPOSER_MEMORY_LIMIT=-1 composer install --optimize-autoloader --no-interaction --no-progress; \
     else COMPOSER_MEMORY_LIMIT=-1 composer install --optimize-autoloader --no-interaction --no-progress --no-dev; \
     fi
+######################
+
+ENV NODE_VERSION 20.12.2
+ENV NVM_DIR /usr/local/nvm
+
+RUN mkdir -p $NVM_DIR
+
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+RUN . "${NVM_DIR}/nvm.sh" \
+    && nvm install $NODE_VERSION \
+    && nvm alias default $NODE_VERSION \
+    && nvm use $NODE_VERSION
+
+ENV PATH="${NVM_DIR}/versions/node/v${NODE_VERSION}/bin:${PATH}"
 
 USER root
