@@ -34,7 +34,7 @@ return new class extends Migration
         Schema::create('news_has_categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('category_id')->constrained('news_categories');
-            $table->foreignId('created_by')->constrained('users');
+            $table->foreignId('news_id')->constrained('news');
           });
     }
 
