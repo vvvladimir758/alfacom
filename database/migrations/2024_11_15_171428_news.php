@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('news_categories', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->foreignId('parent_id')->nullable()->index();
+            $table->bigInteger('parent_id')->nullable()->index();
             $table->bigInteger('lft');
             $table->bigInteger('rgt');
             $table->tinyInteger('depth');
